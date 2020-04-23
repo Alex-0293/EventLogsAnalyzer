@@ -1,0 +1,8 @@
+DATA/ScriptBlockOutput.xml
+LOGS/Errors.log
+LOGS/EventLogAnalyzer.log
+LOGS/Output.log
+VALUES/APP_SCHDSVC_ADMIN_Login.dat
+VALUES/APP_SCHDSVC_ADMIN_Pass.dat
+VALUES/KEYS/Key1.dat
+SETTINGS/Settings.ps1
