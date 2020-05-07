@@ -6,3 +6,7 @@ VALUES/APP_SCHDSVC_ADMIN_Login.dat
 VALUES/APP_SCHDSVC_ADMIN_Pass.dat
 VALUES/KEYS/Key1.dat
 SETTINGS/Settings.ps1
+LOGS/EventLogsAnalyzer.log
+ACL/Access.csv
+ACL/Owner.csv
+ACL/Roles.csv

@@ -1,99 +1,67 @@
 <#
     .SYNOPSIS 
-        Creator
-        dd.MM.yyyy
-        Ver
+        .AUTHOR
+        .DATE
+        .VER
     .DESCRIPTION
     .PARAMETER
     .EXAMPLE
 #>
-$ImportResult = Import-Module AlexkUtils  -PassThru -force
-if ($null -eq $ImportResult) {
-    Write-Host "Module 'AlexkUtils' does not loaded!" -ForegroundColor Red
-    exit 1
-}
-else {
-    $ImportResult = $null
-}
-#requires -version 3
+Param (
+    [datetime] $Start,
+    [datetime] $End,
+    [string]   $ExportPath
+)
 
-#########################################################################
-function Get-WorkDir () {
-    if ($PSScriptRoot -eq "") {
-        if ($PWD -ne "") {
-            $MyScriptRoot = $PWD
-        }        
-        else {
-            Write-Host "Where i am? What is my work dir?"
-        }
-    }
-    else {
-        $MyScriptRoot = $PSScriptRoot
-    }
-    return $MyScriptRoot
-}
-Function Initialize-Script   () {
-    [string]$Global:MyScriptRoot = Get-WorkDir
-    [string]$Global:GlobalSettingsPath = "C:\DATA\Projects\GlobalSettings\SETTINGS\Settings.ps1"
-
-    Get-SettingsFromFile -SettingsFile $Global:GlobalSettingsPath
-    if ($GlobalSettingsSuccessfullyLoaded) {    
-        Get-SettingsFromFile -SettingsFile "$ProjectRoot\$($Global:SETTINGSFolder)\Settings.ps1"
-        if ($Global:LocalSettingsSuccessfullyLoaded) {
-            Initialize-Logging   "$ProjectRoot\$LOGSFolder\$ErrorsLogFileName" "Latest"
-            Write-Host "Logging initialized."            
-        }
-        Else {
-            Add-ToLog -Message "[Error] Error loading local settings!" -logFilePath "$(Split-Path -path $Global:MyScriptRoot -parent)\$LOGSFolder\$ErrorsLogFileName" -Display -Status "Error" -Format 'yyyy-MM-dd HH:mm:ss'
-            Exit 1 
-        }
-    }
-    Else { 
-        Add-ToLog -Message "[Error] Error loading global settings!" -logFilePath "$(Split-Path -path $Global:MyScriptRoot -parent)\LOGS\Errors.log" -Display -Status "Error" -Format 'yyyy-MM-dd HH:mm:ss'
-        Exit 1
-    }
-}
+Clear-Host
+$Global:ScriptName = $MyInvocation.MyCommand.Name
+$InitScript = "C:\DATA\Projects\GlobalSettings\SCRIPTS\Init.ps1"
+if (. "$InitScript" -MyScriptRoot (Split-Path $PSCommandPath -Parent)) { exit 1 }
 # Error trap
 trap {
-    Get-ErrorReporting $_    
+    if ($Global:Logger) {
+      Get-ErrorReporting $_
+        . "$GlobalSettings\$SCRIPTSFolder\Finish.ps1" 
+        . "$GlobalSettings\$SCRIPTSFolder\Finish.ps1"  
+    }
+    Else {
+        Write-Host "There is error before logging initialized." -ForegroundColor Red
+    }   
     exit 1
 }
-#########################################################################
-Clear-Host
-Initialize-Script
-
-$ScriptBlock = {
-    $Start = (Get-Date).AddSeconds(-10)
-    $Logs =  Get-WinEvent -ListLog *  
-    [array]$Res = @()        
-    Foreach($Log in $Logs) {           
-        $Log.LogName
-        $Filter = @{
-            LogName            = $Log.LogName
-            StartTime          = $Start
-        }
-        $Res += Get-WinEvent -FilterHashTable $Filter -ErrorAction SilentlyContinue
-    }    
-}
+################################# Script start here #################################
 
 $EventsLoaded = $false
 
-$User = Get-VarFromAESFile $Global:GlobalKey1 $Global:APP_SCRIPT_ADMIN_Login
-$Pass = Get-VarFromAESFile $Global:GlobalKey1 $Global:APP_SCRIPT_ADMIN_Pass
 
-if ($user) {
-    $Credentials = New-Object System.Management.Automation.PSCredential -ArgumentList (Get-VarToString $User), $Pass
-
-    Start-PSScript -ScriptBlock $ScriptBlock -Credentials $Credentials -logFilePath $ScriptLogFilePath  -Evaluate | Out-Null
-    if(test-path $OutputXMLPath){        
-        [array]$EventArray = Import-Clixml -path $OutputXMLPath 
-        $EventsLoaded = $true
-    }
+if (Test-Path $OutputXMLPath) { 
+    Remove-Item -Path $OutputXMLPath -Force
 }
 
+$Culture = Get-Culture 
+
+[string]$Start = Get-Date $Start -format ($Culture.DateTimeFormat.SortableDateTimePattern )
+[string]$End   = get-date $End -format ($Culture.DateTimeFormat.SortableDateTimePattern )
+
+[string]$ScriptPath = "$MyScriptRoot\GetEventLogs.ps1"
+[string]$Arguments = " -Start `"$Start`" -End `"$End`" -OutputXMLPath `"$OutputXMLPath`""
+
+Start-PSScript -ScriptPath $ScriptPath -Arguments $Arguments -logFilePath $ScriptLogFilePath -Evaluate
+if(test-path $OutputXMLPath){        
+    [array]$EventArray = Import-Clixml -path $OutputXMLPath 
+    $EventsLoaded = $true
+}
+
+
 if ($EventsLoaded){
-    $EventArray | Select-Object TimeCreated, LevelDisplayName, LogName, ProviderName, Id, Message | Sort-Object TimeCreated, LogName| Format-Table -AutoSize 
+    $EventArray | Select-Object TimeCreated, LevelDisplayName, LogName, ProviderName, Id, Message | Sort-Object TimeCreated, LogName | Format-Table -AutoSize
+    $EventArray | Select-Object TimeCreated, LevelDisplayName, LogName, ProviderName, Id, Message | Sort-Object TimeCreated, LogName | Format-Table -AutoSize | Out-String | Set-Content -Path $ExportPath -Encoding utf8 
 
     $EventArray | Group-Object -Property LevelDisplayName, LogName -NoElement |
     Format-Table -AutoSize
+    $EventArray | Group-Object -Property LevelDisplayName, LogName -NoElement |
+    Format-Table -AutoSize | Out-String | Set-Content -Path $ExportPath -Encoding utf8 
 }
+
+################################# Script end here ###################################
+. "$GlobalSettings\$SCRIPTSFolder\Finish.ps1"
